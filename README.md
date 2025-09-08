@@ -2,7 +2,7 @@
 
 A TUI for finding and downloading Claude agent configurations from GitHub.
 
-<img src="https://vhs.charm.sh/vhs-3n6dfbvIYSIHyMMgIkYeOh.gif" alt="Made with VHS">
+<img src="https://vhs.charm.sh/vhs-4654xhf4TTrBrP51jLoo3N.gif" alt="Made with VHS">
 <a href="https://vhs.charm.sh">
   <img src="https://stuff.charm.sh/vhs/badge.svg">
 </a>
