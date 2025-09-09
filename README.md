@@ -16,14 +16,26 @@ Useful for:
 - Exploring how others structure their .claude/agents directories
 - Batch downloading agent configurations
 
+## Installation
+
+```bash
+brew install williavs/tap/agentdl
+```
+
 ## Usage
+
+```bash
+agentdl
+```
+
+Search, browse repos, select files with space, download to ~/.claude/agents or wherever.
+
+### Build from source
 
 ```bash
 go build -o agentdl *.go
 ./agentdl
 ```
-
-Search, browse repos, select files with space, download to ~/.claude/agents or wherever.
 
 ## Built with
 
