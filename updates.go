@@ -19,12 +19,20 @@ func (m model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEsc:
 			return m, tea.Quit
+		case tea.KeyTab:
+			// Toggle search mode
+			if m.searchMode == modeAgents {
+				m.searchMode = modeCommands
+			} else {
+				m.searchMode = modeAgents
+			}
+			return m, nil
 		case tea.KeyEnter:
 			if m.searchInput.Value() != "" {
 				// Clear global selections when starting a new search
 				m.globalSelections.Clear()
 				m.state = stateSearching
-				return m, searchGitHub(m.searchInput.Value(), "all")
+				return m, searchGitHub(m.searchInput.Value(), "all", m.searchMode)
 			}
 			return m, nil
 		}
@@ -232,11 +240,11 @@ func (m model) updateLocation(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 0: // Global
 				m.location = locationGlobal
 				m.state = stateDownloading
-				return m, downloadSelectedFiles(m.results, locationPaths[locationGlobal](), m.globalSelections)
+				return m, downloadSelectedFiles(m.results, locationPaths[locationGlobal][m.searchMode](), m.globalSelections)
 			case 1: // Current
 				m.location = locationCurrent
 				m.state = stateDownloading
-				return m, downloadSelectedFiles(m.results, locationPaths[locationCurrent](), m.globalSelections)
+				return m, downloadSelectedFiles(m.results, locationPaths[locationCurrent][m.searchMode](), m.globalSelections)
 			case 2: // Custom
 				m.state = stateCustomPath
 				m.customPathInput.Focus()

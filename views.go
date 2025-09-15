@@ -16,30 +16,44 @@ func (m model) viewSearch() string {
 	title := lipgloss.NewStyle().
 		Foreground(theme.primary).
 		Bold(true).
-		Render("AGENT GETTER")
+		Render("AGENTDL")
 
 	subtitle := lipgloss.NewStyle().
 		Foreground(theme.muted).
 		Italic(true).
 		Render("Discover Claude Agents on GitHub")
 
+	// Mode indicator
+	var modeText string
+	var modeStyle lipgloss.Style
+	if m.searchMode == modeAgents {
+		modeText = "[Agents]"
+		modeStyle = lipgloss.NewStyle().Foreground(theme.secondary).Bold(true)
+	} else {
+		modeText = "[Commands]"
+		modeStyle = lipgloss.NewStyle().Foreground(theme.success).Bold(true)
+	}
+	modeIndicator := modeStyle.Render(modeText)
+
 	// Build content using simple formatting
 	var content string
 	if m.err != nil {
-		content = fmt.Sprintf("\n\n%s\n%s\n\n%s\n\n%s\n\n%s\n\n%s",
+		content = fmt.Sprintf("\n\n%s\n%s\n\n%s\n\n%s\n\n%s\n\n%s\n\n%s",
 			title,
 			subtitle,
+			modeIndicator,
 			m.searchInput.View(),
 			errorStyle.Render(fmt.Sprintf("⚠ %v", m.err)),
-			helpStyle.Render("Enter: search • Esc: quit"),
+			helpStyle.Render("Tab: toggle mode • Enter: search • Esc: quit"),
 			lipgloss.NewStyle().Foreground(theme.muted).Italic(true).Render("Made w/ ♥ by WillyV3"),
 		)
 	} else {
-		content = fmt.Sprintf("\n\n%s\n%s\n\n%s\n\n%s\n\n%s",
+		content = fmt.Sprintf("\n\n%s\n%s\n\n%s\n\n%s\n\n%s\n\n%s",
 			title,
 			subtitle,
+			modeIndicator,
 			m.searchInput.View(),
-			helpStyle.Render("Enter: search • Esc: quit"),
+			helpStyle.Render("Tab: toggle mode • Enter: search • Esc: quit"),
 			lipgloss.NewStyle().Foreground(theme.muted).Italic(true).Render("Made w/ ♥ by WillyV3"),
 		)
 	}
@@ -165,17 +179,17 @@ func (m model) viewLocation() string {
 
 	// Option 1
 	if m.locationChoice == 0 {
-		b.WriteString(selectedStyle.Render("> Global: " + locationPaths[locationGlobal]()))
+		b.WriteString(selectedStyle.Render("> Global: " + locationPaths[locationGlobal][m.searchMode]()))
 	} else {
-		b.WriteString(normalStyle.Render("  Global: " + locationPaths[locationGlobal]()))
+		b.WriteString(normalStyle.Render("  Global: " + locationPaths[locationGlobal][m.searchMode]()))
 	}
 	b.WriteString("\n")
 
 	// Option 2
 	if m.locationChoice == 1 {
-		b.WriteString(selectedStyle.Render("> Current: " + locationPaths[locationCurrent]()))
+		b.WriteString(selectedStyle.Render("> Current: " + locationPaths[locationCurrent][m.searchMode]()))
 	} else {
-		b.WriteString(normalStyle.Render("  Current: " + locationPaths[locationCurrent]()))
+		b.WriteString(normalStyle.Render("  Current: " + locationPaths[locationCurrent][m.searchMode]()))
 	}
 	b.WriteString("\n")
 
@@ -263,9 +277,9 @@ func (m model) viewComplete() string {
 	var path string
 	switch m.location {
 	case locationGlobal:
-		path = locationPaths[locationGlobal]()
+		path = locationPaths[locationGlobal][m.searchMode]()
 	case locationCurrent:
-		path = locationPaths[locationCurrent]()
+		path = locationPaths[locationCurrent][m.searchMode]()
 	case locationCustom:
 		path = m.customPath
 	}

@@ -65,6 +65,13 @@ var (
 
 type searchResult github.Result
 
+type searchMode int
+
+const (
+	modeAgents searchMode = iota
+	modeCommands
+)
+
 type locationOption int
 
 const (
@@ -73,13 +80,24 @@ const (
 	locationCustom
 )
 
-var locationPaths = map[locationOption]func() string{
-	locationGlobal: func() string {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, ".claude", "agents")
+var locationPaths = map[locationOption]map[searchMode]func() string{
+	locationGlobal: {
+		modeAgents: func() string {
+			home, _ := os.UserHomeDir()
+			return filepath.Join(home, ".claude", "agents")
+		},
+		modeCommands: func() string {
+			home, _ := os.UserHomeDir()
+			return filepath.Join(home, ".claude", "commands")
+		},
 	},
-	locationCurrent: func() string {
-		return filepath.Join(".", ".claude", "agents")
+	locationCurrent: {
+		modeAgents: func() string {
+			return filepath.Join(".", ".claude", "agents")
+		},
+		modeCommands: func() string {
+			return filepath.Join(".", ".claude", "commands")
+		},
 	},
 }
 
@@ -139,6 +157,7 @@ type model struct {
 	customPath       string
 	customPathInput  textinput.Model
 	repoViewer       *RepoViewer
+	searchMode       searchMode        // Current search mode: agents or commands
 	locationChoice   int               // 0=global, 1=current, 2=custom
 	globalSelections *SelectionManager // Global selection manager
 	returnToState    state             // State to return to after confirmation
@@ -174,6 +193,7 @@ func initialModel() model {
 		height:           24,
 		viewport:         vp,
 		customPathInput:  customInput,
+		searchMode:       modeAgents, // Default to agents mode
 		globalSelections: NewSelectionManager(),
 	}
 }

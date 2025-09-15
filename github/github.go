@@ -20,10 +20,19 @@ type Result struct {
 	Selected bool
 }
 
+// SearchMode represents the search target
+type SearchMode int
+
+const (
+	ModeAgents SearchMode = iota
+	ModeCommands
+)
+
 // SearchOptions configures the search behavior
 type SearchOptions struct {
-	MatchMode string // "all" (AND), "any" (OR)
-	Limit     int
+	MatchMode  string     // "all" (AND), "any" (OR)
+	SearchMode SearchMode // agents or commands
+	Limit      int
 }
 
 // Search performs intelligent keyword search on GitHub
@@ -68,6 +77,8 @@ func Search(query string, opts SearchOptions) []Result {
 		relPath := r.Repository.NameWithOwner + "/" + r.Path
 		if idx := strings.Index(r.Path, ".claude/agents/"); idx >= 0 {
 			relPath = r.Repository.NameWithOwner + "/" + r.Path[idx+15:]
+		} else if idx := strings.Index(r.Path, ".claude/commands/"); idx >= 0 {
+			relPath = r.Repository.NameWithOwner + "/" + r.Path[idx+16:]
 		}
 		results = append(results, Result{
 			Repo:    r.Repository.NameWithOwner,
@@ -89,23 +100,32 @@ func Search(query string, opts SearchOptions) []Result {
 // buildQuery constructs GitHub search query from user input
 func buildQuery(input string, opts SearchOptions) string {
 	keywords := strings.Fields(strings.TrimSpace(input))
-	if len(keywords) == 0 {
-		return "path:.claude/agents/"
+
+	// Determine path based on search mode
+	var path string
+	if opts.SearchMode == ModeCommands {
+		path = "path:.claude/commands/"
+	} else {
+		path = "path:.claude/agents/"
 	}
-	
+
+	if len(keywords) == 0 {
+		return path
+	}
+
 	// Handle exact phrase (quoted)
 	if strings.HasPrefix(input, "\"") && strings.HasSuffix(input, "\"") {
-		return input + " path:.claude/agents/"
+		return input + " " + path
 	}
-	
+
 	// Build keyword query based on mode
 	if opts.MatchMode == "any" {
 		// OR mode: keyword1 OR keyword2 OR keyword3
-		return "(" + strings.Join(keywords, " OR ") + ") path:.claude/agents/"
+		return "(" + strings.Join(keywords, " OR ") + ") " + path
 	}
-	
+
 	// Default AND mode: all keywords must match
-	return strings.Join(keywords, " ") + " path:.claude/agents/"
+	return strings.Join(keywords, " ") + " " + path
 }
 
 // Helper functions

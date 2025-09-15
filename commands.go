@@ -16,21 +16,30 @@ import (
 // Commands (Async Operations)
 // ============================
 
-func searchGitHub(query string, mode string) tea.Cmd {
+func searchGitHub(query string, mode string, searchMode searchMode) tea.Cmd {
 	return func() tea.Msg {
-		opts := github.SearchOptions{
-			MatchMode: mode,
-			Limit:     200,
+		// Convert searchMode to github.SearchMode
+		var githubMode github.SearchMode
+		if searchMode == modeCommands {
+			githubMode = github.ModeCommands
+		} else {
+			githubMode = github.ModeAgents
 		}
-		
+
+		opts := github.SearchOptions{
+			MatchMode:  mode,
+			SearchMode: githubMode,
+			Limit:      200,
+		}
+
 		githubResults := github.Search(query, opts)
-		
+
 		// Convert to our internal type
 		results := make([]searchResult, len(githubResults))
 		for i, r := range githubResults {
 			results[i] = searchResult(r)
 		}
-		
+
 		return searchResultsMsg{results: results}
 	}
 }
