@@ -46,7 +46,6 @@ func Search(query string, opts SearchOptions) []Result {
 	
 	// Execute GitHub search
 	cmd := exec.Command("gh", "search", "code", searchQuery,
-		"--match", "path",
 		"--limit", fmt.Sprintf("%d", opts.Limit),
 		"--json", "repository,path,url")
 	
@@ -113,18 +112,18 @@ func buildQuery(input string, opts SearchOptions) string {
 		return path
 	}
 
-	// Handle exact phrase (quoted)
+	// Handle exact phrase (quoted) - search content for exact phrase
 	if strings.HasPrefix(input, "\"") && strings.HasSuffix(input, "\"") {
-		return input + " " + path
+		phrase := strings.Trim(input, "\"")
+		return phrase + " " + path
 	}
 
-	// Build keyword query based on mode
 	if opts.MatchMode == "any" {
-		// OR mode: keyword1 OR keyword2 OR keyword3
+		// OR mode: (keyword1 OR keyword2) path
 		return "(" + strings.Join(keywords, " OR ") + ") " + path
 	}
 
-	// Default AND mode: all keywords must match
+	// Default AND mode: keyword1 keyword2 path (AND is implicit)
 	return strings.Join(keywords, " ") + " " + path
 }
 
