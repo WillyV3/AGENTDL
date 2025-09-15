@@ -1,5 +1,7 @@
 # AGENTDL
 
+9/14/25- ADded commands search 
+
 A TUI for finding and downloading Claude agent configurations from GitHub.
 
 <img src="https://vhs.charm.sh/vhs-4654xhf4TTrBrP51jLoo3N.gif" alt="Made with VHS">
