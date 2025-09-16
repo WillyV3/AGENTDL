@@ -83,3 +83,5 @@ Learning project to get familiar with Bubble Tea TUI framework and Go developmen
 ## Credits
 
 Built using the excellent TUI libraries from [Charm](https://github.com/charmbracelet).
+
+Part of [WillyV3](https://github.com/WillyV3) organization.
