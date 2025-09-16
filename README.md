@@ -24,7 +24,7 @@ Useful for:
 ## Installation
 
 ```bash
-brew install williavs/tap/agentdl
+brew install WillyV3/tap/agentdl
 ```
 
 ## Usage
