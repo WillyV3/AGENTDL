@@ -1,0 +1,222 @@
+package github
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os/exec"
+	"strings"
+	"sync"
+)
+
+// ScrapedResult represents a file found by scraping
+type ScrapedResult struct {
+	Repo     string
+	Path     string
+	URL      string
+	Stars    int
+	RelPath  string
+	Selected bool
+}
+
+// SearchByScraping performs filename-only search by scraping GitHub repositories
+func SearchByScraping(keywords string, opts SearchOptions) []Result {
+	if opts.Limit == 0 {
+		opts.Limit = 100 // Lower limit for scraping
+	}
+
+	// First, get list of repositories that contain .claude directories
+	repos := findRepositoriesWithClaudeDir(opts.SearchMode)
+
+	// Then scrape each repository for files matching keywords
+	results := scrapeReposForFiles(repos, keywords, opts)
+
+	// Convert to our Result type and fetch stars
+	return convertAndFetchStars(results)
+}
+
+// findRepositoriesWithClaudeDir finds repositories containing .claude/agents or .claude/commands
+func findRepositoriesWithClaudeDir(mode SearchMode) []string {
+	// Use existing GitHub CLI to find repositories with these directories
+	results := searchFallback("", SearchOptions{
+		MatchMode:  "all",
+		SearchMode: mode,
+		Limit:      50, // Get top 50 repos first
+	})
+
+	// Extract unique repository names
+	seen := make(map[string]bool)
+	repos := []string{}
+	for _, r := range results {
+		if !seen[r.Repo] {
+			seen[r.Repo] = true
+			repos = append(repos, r.Repo)
+		}
+	}
+
+	return repos
+}
+
+// scrapeReposForFiles scrapes individual repositories for files matching keywords
+func scrapeReposForFiles(repos []string, keywords string, opts SearchOptions) []ScrapedResult {
+	var results []ScrapedResult
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	// Limit concurrent scraping
+	sem := make(chan struct{}, 3)
+
+	keywordList := strings.Fields(strings.ToLower(keywords))
+
+	for _, repo := range repos {
+		wg.Add(1)
+		go func(repoName string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			repoResults := scrapeRepository(repoName, keywordList, opts)
+
+			mu.Lock()
+			results = append(results, repoResults...)
+			mu.Unlock()
+		}(repo)
+	}
+
+	wg.Wait()
+	return results
+}
+
+// scrapeRepository scrapes a single repository for matching files
+func scrapeRepository(repo string, keywords []string, opts SearchOptions) []ScrapedResult {
+	var results []ScrapedResult
+
+	// Determine the directory to scrape based on search mode
+	var dirPath string
+	if opts.SearchMode == ModeCommands {
+		dirPath = ".claude/commands"
+	} else {
+		dirPath = ".claude/agents"
+	}
+
+	// Create a new collector
+	c := colly.NewCollector(
+		colly.AllowedDomains("github.com"),
+		colly.UserAgent("Mozilla/5.0 (compatible; AgentSearch/1.0)"),
+	)
+
+	// Set up rate limiting
+	c.Limit(&colly.LimitRule{
+		DomainGlob:  "*github.com*",
+		Parallelism: 1,
+	})
+
+	// Handle file entries in the directory listing
+	c.OnHTML("div[role='row']", func(e *colly.HTMLElement) {
+		// Extract file information from GitHub's directory listing
+		filename := e.ChildText("div[role='rowheader'] a")
+		if !strings.HasSuffix(filename, ".md") {
+			return // Only process .md files
+		}
+
+		// Check if filename matches any keywords
+		if !filenameMatchesKeywords(filename, keywords, opts.MatchMode) {
+			return
+		}
+
+		// Build the file URL
+		fileURL := e.ChildAttr("div[role='rowheader'] a", "href")
+		if fileURL != "" {
+			// Convert to absolute URL
+			fullURL := e.Request.AbsoluteURL(fileURL)
+
+			// Build the path
+			fullPath := dirPath + "/" + filename
+
+			results = append(results, ScrapedResult{
+				Repo:     repo,
+				Path:     fullPath,
+				URL:      fullURL,
+				Stars:    0, // Will be filled later
+				RelPath:  repo + "/" + filename,
+				Selected: false,
+			})
+		}
+	})
+
+	// Handle errors
+	c.OnError(func(r *colly.Response, err error) {
+		log.Printf("Error scraping %s: %v", r.Request.URL, err)
+	})
+
+	// Visit the repository directory
+	repoURL := fmt.Sprintf("https://github.com/%s/tree/main/%s", repo, dirPath)
+	c.Visit(repoURL)
+
+	// Also try 'master' branch if main doesn't work
+	if len(results) == 0 {
+		masterURL := fmt.Sprintf("https://github.com/%s/tree/master/%s", repo, dirPath)
+		c.Visit(masterURL)
+	}
+
+	return results
+}
+
+// filenameMatchesKeywords checks if a filename matches the search keywords
+func filenameMatchesKeywords(filename string, keywords []string, matchMode string) bool {
+	if len(keywords) == 0 {
+		return true
+	}
+
+	filename = strings.ToLower(filename)
+
+	if matchMode == "any" {
+		// OR mode: filename must contain at least one keyword
+		for _, keyword := range keywords {
+			if strings.Contains(filename, keyword) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// AND mode: filename must contain all keywords
+	for _, keyword := range keywords {
+		if !strings.Contains(filename, keyword) {
+			return false
+		}
+	}
+	return true
+}
+
+// convertAndFetchStars converts ScrapedResult to Result and fetches star counts
+func convertAndFetchStars(scrapedResults []ScrapedResult) []Result {
+	// Extract unique repositories
+	repoSet := make(map[string]bool)
+	for _, r := range scrapedResults {
+		repoSet[r.Repo] = true
+	}
+
+	repos := make([]string, 0, len(repoSet))
+	for repo := range repoSet {
+		repos = append(repos, repo)
+	}
+
+	// Fetch star counts for all repositories
+	stars := fetchStarsParallel(repos)
+
+	// Convert to Result type
+	results := make([]Result, 0, len(scrapedResults))
+	for _, sr := range scrapedResults {
+		results = append(results, Result{
+			Repo:     sr.Repo,
+			Path:     sr.Path,
+			URL:      sr.URL,
+			Stars:    stars[sr.Repo],
+			RelPath:  sr.RelPath,
+			Selected: sr.Selected,
+		})
+	}
+
+	return results
+}
